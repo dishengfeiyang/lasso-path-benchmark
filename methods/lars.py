@@ -1,0 +1,44 @@
+import numpy as np
+import time
+from sklearn.linear_model import LassoLars
+from ._base import BasePathMethod
+
+
+class LarsPath(BasePathMethod):
+    def __init__(self):
+        super().__init__("LARS")
+
+    def fit(self, X, y, lambdas, groups=None):
+        n_samples, n_features = X.shape
+        n_lambdas = len(lambdas)
+
+        coef_path = np.zeros((n_features, n_lambdas))
+        objective = np.zeros(n_lambdas)
+        sparsity = np.zeros(n_lambdas, dtype=int)
+        timing = np.zeros(n_lambdas)
+
+        for j, lam in enumerate(lambdas):
+            # LassoLars 使用损失函数 (1/(2n))||y-Xw||^2 + alpha||w||_1
+            # 因此 alpha = lambda / n_samples
+            alpha = lam / n_samples
+
+            start = time.time()
+            model = LassoLars(alpha=alpha, fit_intercept=False, max_iter=100000)
+            model.fit(X, y)
+            end = time.time()
+
+            beta = model.coef_
+            coef_path[:, j] = beta
+
+            residual = y - X @ beta
+            objective[j] = 0.5 * np.sum(residual ** 2) + lam * np.sum(np.abs(beta))
+            sparsity[j] = np.sum(beta != 0)
+            timing[j] = end - start
+
+        return {
+            "coef_path": coef_path,
+            "objective": objective,
+            "sparsity": sparsity,
+            "timing": timing,
+            "lambdas": np.array(lambdas),
+        }

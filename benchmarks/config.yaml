@@ -1,0 +1,52 @@
+# Experiment configuration
+methods:
+  - "lars"
+  - "coordinate_descent"
+  - "admm"
+  - "block_cd"
+  - "celer"
+  - "group_lars"
+  - "fista"
+  - "screening_cd"
+  - "anderson_cd"
+  - "elastic_net"
+  - "gap_safe_cd"
+
+datasets:
+  # Real datasets
+  - name: "california_housing"
+    synthetic: false
+  - name: "diabetes"
+    synthetic: false
+  - name: "newsgroups"
+    synthetic: false
+  - name: "olivetti_faces"
+    synthetic: false
+
+  # Synthetic datasets
+  - name: "synth_n100_p50"
+    synthetic: true
+    params:
+      n_samples: 100
+      n_features: 50
+      n_informative: 5
+      n_groups: 10
+      rho: 0.1
+      noise: 0.1
+      random_state: 42
+
+  - name: "synth_n500_p200_highcorr"
+    synthetic: true
+    params:
+      n_samples: 500
+      n_features: 200
+      n_informative: 20
+      n_groups: 20
+      rho: 0.9
+      noise: 0.1
+      random_state: 42
+
+# Lambda sequence settings
+lambda_settings:
+  n_lambdas: 50
+  ratio: 0.01   # 最小 lambda = ratio * lambda_max
