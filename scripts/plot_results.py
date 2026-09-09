@@ -39,7 +39,6 @@ def plot_objective_lasso(df):
     df_lasso = df[df["method_type"] == "lasso"].copy()
     if df_lasso.empty:
         return
-    # 使用分面，每个数据集一个子图，y轴对数刻度
     g = sns.catplot(
         data=df_lasso, x="method", y="avg_objective",
         col="dataset", kind="bar", col_wrap=2, sharey=False,
@@ -108,7 +107,6 @@ def plot_sparsity(df):
 
 
 def plot_screened_ratio(df):
-    # 只展示有筛选比例的方法
     df_screen = df.dropna(subset=["screened_ratio"]).copy()
     if df_screen.empty:
         return
@@ -123,7 +121,6 @@ def plot_screened_ratio(df):
 
 
 def compute_path_difference_from_npz(df):
-    """从 .npz 文件计算每个方法相对于 LARS 的路径平均绝对差"""
     if not os.path.isdir(RESULTS_DIR):
         print("Results directory not found, skipping path difference plot.")
         return None
@@ -131,10 +128,8 @@ def compute_path_difference_from_npz(df):
     datasets = df["dataset"].unique()
     rows = []
     for dataset in datasets:
-        # 寻找该数据集的 LARS 结果文件
         lars_file = os.path.join(RESULTS_DIR, f"{dataset}_lars.npz")
         if not os.path.exists(lars_file):
-            # 如果没有 LARS，尝试用 coordinate_descent 作为参考
             lars_file = os.path.join(RESULTS_DIR, f"{dataset}_coordinate_descent.npz")
             if not os.path.exists(lars_file):
                 continue
@@ -148,10 +143,8 @@ def compute_path_difference_from_npz(df):
             try:
                 m_data = np.load(method_file)
                 m_path = m_data["coef_path"]
-                # 确保形状一致
                 if ref_path.shape != m_path.shape:
                     continue
-                # 平均绝对差
                 diff = np.mean(np.abs(m_path - ref_path))
                 rows.append({
                     "dataset": dataset,
@@ -182,8 +175,49 @@ def plot_path_difference(df):
     save_fig(fig, "path_difference_log.png")
 
 
+def plot_accuracy_time_memory(df):
+    """绘制 accuracy vs time 散点图，点大小表示内存占用"""
+    # 只保留 Lasso 方法，排除 Elastic Net（目标函数不同）
+    df_lasso = df[(df["method_type"] == "lasso") & (df["method"] != "elastic_net")].copy()
+    if df_lasso.empty:
+        print("No Lasso methods found for accuracy plot.")
+        return
+
+    # 计算每个数据集的最佳目标值（最小 avg_objective）
+    best_obj_per_dataset = df_lasso.groupby("dataset")["avg_objective"].min()
+
+    # 计算相对误差和精度
+    df_lasso["best_obj"] = df_lasso["dataset"].map(best_obj_per_dataset)
+    eps = 1e-12
+    df_lasso["rel_err"] = (df_lasso["avg_objective"] - df_lasso["best_obj"]) / (df_lasso["best_obj"] + eps)
+    df_lasso["accuracy"] = 1.0 / (1.0 + df_lasso["rel_err"])
+
+    # 绘图
+    fig, ax = plt.subplots(figsize=(12, 8))
+    scatter = sns.scatterplot(
+        data=df_lasso,
+        x="accuracy",
+        y="total_time",
+        size="peak_memory_mb",
+        sizes=(40, 400),
+        hue="method",
+        alpha=0.8,
+        ax=ax,
+        legend="brief",
+    )
+    ax.set_yscale("log")
+    ax.set_xlabel("Accuracy (1 / (1 + relative objective error))")
+    ax.set_ylabel("Total time (seconds, log scale)")
+    ax.set_title("Accuracy vs. Solution Time (dot size ∝ memory)")
+    ax.grid(True, which="both", linestyle="--", linewidth=0.5)
+
+    # 调整图例位置
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+    fig.tight_layout()
+    save_fig(fig, "accuracy_time_memory.png")
+
+
 def plot_scaling_time(scaling_df):
-    # 分别绘制三个实验的时间变化
     experiments = ["vary_n", "vary_p", "vary_n_lambdas"]
     x_vars = {"vary_n": "n_samples", "vary_p": "n_features", "vary_n_lambdas": "n_lambdas"}
     for exp in experiments:
@@ -234,6 +268,7 @@ def main():
     plot_sparsity(df)
     plot_screened_ratio(df)
     plot_path_difference(df)
+    plot_accuracy_time_memory(df)  # 新增图
 
     # 扩展性实验图
     if os.path.exists(SCALING_CSV):
