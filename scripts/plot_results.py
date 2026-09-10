@@ -176,23 +176,18 @@ def plot_path_difference(df):
 
 
 def plot_accuracy_time_memory(df):
-    """绘制 accuracy vs time 散点图，点大小表示内存占用"""
-    # 只保留 Lasso 方法，排除 Elastic Net（目标函数不同）
+    """绘制 accuracy vs time 散点图，点大小表示内存占用（基于目标值精度）"""
     df_lasso = df[(df["method_type"] == "lasso") & (df["method"] != "elastic_net")].copy()
     if df_lasso.empty:
         print("No Lasso methods found for accuracy plot.")
         return
 
-    # 计算每个数据集的最佳目标值（最小 avg_objective）
     best_obj_per_dataset = df_lasso.groupby("dataset")["avg_objective"].min()
-
-    # 计算相对误差和精度
     df_lasso["best_obj"] = df_lasso["dataset"].map(best_obj_per_dataset)
     eps = 1e-12
     df_lasso["rel_err"] = (df_lasso["avg_objective"] - df_lasso["best_obj"]) / (df_lasso["best_obj"] + eps)
     df_lasso["accuracy"] = 1.0 / (1.0 + df_lasso["rel_err"])
 
-    # 绘图
     fig, ax = plt.subplots(figsize=(12, 8))
     scatter = sns.scatterplot(
         data=df_lasso,
@@ -210,11 +205,54 @@ def plot_accuracy_time_memory(df):
     ax.set_ylabel("Total time (seconds, log scale)")
     ax.set_title("Accuracy vs. Solution Time (dot size ∝ memory)")
     ax.grid(True, which="both", linestyle="--", linewidth=0.5)
-
-    # 调整图例位置
     ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
     fig.tight_layout()
     save_fig(fig, "accuracy_time_memory.png")
+
+
+def plot_pathdiff_time_memory(df):
+    """绘制 path difference vs time 散点图，点大小表示内存占用（基于图4的路径差异和图5的总时间）"""
+    # 计算路径差异
+    path_df = compute_path_difference_from_npz(df)
+    if path_df is None or path_df.empty:
+        print("No path difference data available for pathdiff-time-memory plot.")
+        return
+
+    # 合并时间与内存信息
+    merged = pd.merge(
+        path_df,
+        df[["dataset", "method", "total_time", "peak_memory_mb"]],
+        on=["dataset", "method"],
+        how="inner"
+    )
+    if merged.empty:
+        print("No merged data for pathdiff-time-memory plot.")
+        return
+
+    # 只保留 Lasso 方法（排除 Elastic Net），因为路径差异是相对于 Lasso 参考的
+    merged = merged[merged["method"] != "elastic_net"]
+
+    fig, ax = plt.subplots(figsize=(12, 8))
+    scatter = sns.scatterplot(
+        data=merged,
+        x="path_diff",
+        y="total_time",
+        size="peak_memory_mb",
+        sizes=(40, 400),
+        hue="method",
+        alpha=0.8,
+        ax=ax,
+        legend="brief",
+    )
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel("Path difference (mean absolute coefficient difference, log scale)")
+    ax.set_ylabel("Total time (seconds, log scale)")
+    ax.set_title("Path Difference vs. Solution Time (dot size ∝ memory)")
+    ax.grid(True, which="both", linestyle="--", linewidth=0.5)
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+    fig.tight_layout()
+    save_fig(fig, "pathdiff_time_memory.png")
 
 
 def plot_scaling_time(scaling_df):
@@ -268,7 +306,8 @@ def main():
     plot_sparsity(df)
     plot_screened_ratio(df)
     plot_path_difference(df)
-    plot_accuracy_time_memory(df)  # 新增图
+    plot_accuracy_time_memory(df)
+    plot_pathdiff_time_memory(df)   # 新增基于图4和图5指标的散点图
 
     # 扩展性实验图
     if os.path.exists(SCALING_CSV):
