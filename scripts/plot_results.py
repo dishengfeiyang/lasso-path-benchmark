@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import seaborn as sns
 
 sns.set_theme(style="whitegrid")
@@ -188,7 +189,6 @@ def plot_accuracy_time_memory(df):
     df_lasso["rel_err"] = (df_lasso["avg_objective"] - df_lasso["best_obj"]) / (df_lasso["best_obj"] + eps)
     df_lasso["accuracy"] = 1.0 / (1.0 + df_lasso["rel_err"])
 
-    # 动态计算列数，便于未来加入更多数据集
     n_datasets = df_lasso["dataset"].nunique()
     col_wrap = min(3, n_datasets)
 
@@ -210,7 +210,18 @@ def plot_accuracy_time_memory(df):
     g.set(yscale="log")
     g.set_axis_labels("Accuracy (1 / (1 + relative objective error))", "Total time (log scale)")
     g.set_titles("{col_name}")
+
+    # 对线性 x 轴使用固定小数位显示，避免科学计数法
+    for ax in g.axes.flat:
+        ax.xaxis.set_major_formatter(mticker.FormatStrFormatter('%.4f'))
+
+    # 调整图例位置，避免与子图重叠
     g.fig.suptitle("Accuracy vs. Solution Time (dot size ∝ memory)", y=1.02)
+    g.fig.subplots_adjust(right=0.85)
+    if g.legend is not None:
+        g.legend.set_bbox_to_anchor((1.02, 0.5))
+        g.legend.set_loc('center left')
+
     g.fig.tight_layout()
     save_fig(g.fig, "accuracy_time_memory.png")
 
@@ -232,10 +243,8 @@ def plot_pathdiff_time_memory(df):
         print("No merged data for pathdiff-time-memory plot.")
         return
 
-    # 排除 Elastic Net，因为路径差异是相对于 Lasso 参考的
     merged = merged[merged["method"] != "elastic_net"]
 
-    # 动态计算列数，便于未来加入更多数据集
     n_datasets = merged["dataset"].nunique()
     col_wrap = min(3, n_datasets)
 
@@ -257,7 +266,15 @@ def plot_pathdiff_time_memory(df):
     g.set(xscale="log", yscale="log")
     g.set_axis_labels("Path difference (log scale)", "Total time (log scale)")
     g.set_titles("{col_name}")
+
+    # 对数 x 轴不需要 ticklabel_format，保留默认对数格式即可
+    # 调整图例位置
     g.fig.suptitle("Path Difference vs. Solution Time (dot size ∝ memory)", y=1.02)
+    g.fig.subplots_adjust(right=0.85)
+    if g.legend is not None:
+        g.legend.set_bbox_to_anchor((1.02, 0.5))
+        g.legend.set_loc('center left')
+
     g.fig.tight_layout()
     save_fig(g.fig, "pathdiff_time_memory.png")
 
